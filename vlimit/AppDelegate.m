@@ -18,7 +18,15 @@
 
 @implementation AppDelegate
 {
-  struct vlimit_helper _helper;
+  struct vlimit_helper *_helper;
+}
+
+- (void)dealloc
+{
+  if (_helper != NULL) {
+    free(_helper);
+    _helper = NULL;
+  }
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
@@ -62,15 +70,15 @@
   Float32 maxVolume = maxVolumeObj ? [maxVolumeObj floatValue] : 100;
   [volumeSlider setFloatValue:maxVolume];
 
-  _helper = vlimit_start_service();
-  _helper.vlimit_set_max_volume(&_helper, maxVolume);
+  vlimit_start_service(&_helper);
+  _helper->vlimit_set_max_volume(_helper, maxVolume);
 }
 
 - (void)maxVolumeSliderDidChange:(NSSlider *)slider
 {
   float value = [slider floatValue];
 
-  _helper.vlimit_set_max_volume(&_helper, value);
+  _helper->vlimit_set_max_volume(_helper, value);
   [[NSUserDefaults standardUserDefaults] setFloat:value forKey:MAX_VOLUME_KEY];
 }
 

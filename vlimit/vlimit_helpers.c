@@ -10,11 +10,11 @@
 
 #define CR(ret)\
 do {\
-OSStatus __s = (ret);\
-if (__s != noErr) {\
-return (__s);\
-}\
-} while (0)\
+     OSStatus __s = (ret);\
+     if (__s != noErr) {\
+       return (__s);\
+   }\
+} while (0);\
 
 static inline AudioObjectID vlimit_get_audio_device()
 {
@@ -43,6 +43,21 @@ static inline AudioObjectID vlimit_get_audio_device()
 }
 
 static inline OSStatus
+vlimit_get_system_volume(AudioObjectID inObjectID, Float32 *volumeOut)
+{
+  AudioObjectPropertyAddress addr;
+  addr.mSelector = kAudioHardwareServiceDeviceProperty_VirtualMasterVolume;
+  addr.mScope = kAudioObjectPropertyScopeOutput;
+  addr.mElement = kAudioObjectPropertyElementMaster;
+
+  Float32 volume = 0;
+  UInt32 volumeSize = sizeof(volume);
+  CR(AudioObjectGetPropertyData(inObjectID, &addr, 0, NULL, &volumeSize, &volume))
+  *volumeOut = volume;
+  return noErr;
+}
+
+static inline OSStatus
 vlimit_set_system_volume(AudioObjectID inObjectID, Float32 volume)
 {
   AudioObjectPropertyAddress addr;
@@ -51,9 +66,9 @@ vlimit_set_system_volume(AudioObjectID inObjectID, Float32 volume)
   addr.mElement = kAudioObjectPropertyElementMaster;
 
   Boolean settable = 0;
-  CR(AudioObjectIsPropertySettable(inObjectID, &addr, &settable));
+  CR(AudioObjectIsPropertySettable(inObjectID, &addr, &settable))
   if (!settable) return 1;
-  CR(AudioObjectSetPropertyData(inObjectID, &addr, 0, NULL, sizeof(volume), &volume));
+  CR(AudioObjectSetPropertyData(inObjectID, &addr, 0, NULL, sizeof(volume), &volume))
   return noErr;
 }
 
@@ -63,16 +78,13 @@ vlimit_system_volume_changed(AudioObjectID inObjectID,
                              const AudioObjectPropertyAddress *inAddresses,
                              void *inClientData)
 {
-  Float32 volume = 0;
-  UInt32 volume_size = sizeof(volume);
-  CR(AudioObjectGetPropertyData(inObjectID, inAddresses, 0, NULL, &volume_size, &volume));
-
+  Float32 volume;
+  CR(vlimit_get_system_volume(inObjectID, &volume));
+ 
   struct vlimit_helper *self = inClientData;
-
   if (volume > self->max_volume) {
-    CR(vlimit_set_system_volume(inObjectID, self->max_volume));
+    CR(vlimit_set_system_volume(inObjectID, self->max_volume))
   }
-
   return noErr;
 }
 
@@ -94,7 +106,7 @@ vlimit_system_device_changed(AudioObjectID inObjectID,
     CR(AudioObjectRemovePropertyListener(previousID,
                                          &addr,
                                          vlimit_system_volume_changed,
-                                         self));
+                                         self))
   }
 
   if ((self->audioID = vlimit_get_audio_device()) == kAudioObjectUnknown) {
@@ -106,38 +118,59 @@ vlimit_system_device_changed(AudioObjectID inObjectID,
   CR(AudioObjectGetPropertyData(inObjectID, inAddresses, 0, NULL, &volume_size, &volume));
 
   if (volume > self->max_volume) {
-    CR(vlimit_set_system_volume(self->audioID, self->max_volume));
+    CR(vlimit_set_system_volume(self->audioID, self->max_volume))
   }
 
   CR(AudioObjectAddPropertyListener(self->audioID,
                                     &addr,
                                     vlimit_system_volume_changed,
-                                    self));
+                                    self))
 
   return noErr;
 }
 
 static OSStatus vlimit_set_max_volume(struct vlimit_helper *self, Float32 max_volume)
 {
+  Float32 volume;
+  vlimit_get_system_volume(self->audioID, &volume);
+
+  if (volume > max_volume) {
+    vlimit_set_system_volume(self->audioID, max_volume);
+  }
+
   self->max_volume = max_volume;
   return noErr;
 }
 
-struct vlimit_helper vlimit_start_service()
+OSStatus vlimit_start_service(struct vlimit_helper **helper)
 {
-  struct vlimit_helper helper;
-  helper.audioID = vlimit_get_audio_device();
-  helper.vlimit_set_max_volume = vlimit_set_max_volume;
-  helper.max_volume = 100;
+  if (*helper == NULL) {
+    *helper = malloc(sizeof(struct vlimit_helper));
+  }
 
-  AudioObjectPropertyAddress addr;
-  addr.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
-  addr.mScope = kAudioObjectPropertyScopeGlobal;
-  addr.mElement = kAudioObjectPropertyElementMaster;
+  (*helper)->audioID = vlimit_get_audio_device();
+  (*helper)->vlimit_set_max_volume = vlimit_set_max_volume;
+  (*helper)->max_volume = 100;
+
+  AudioObjectPropertyAddress deviceAddr;
+  deviceAddr.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
+  deviceAddr.mScope = kAudioObjectPropertyScopeGlobal;
+  deviceAddr.mElement = kAudioObjectPropertyElementMaster;
 
   AudioObjectAddPropertyListener(kAudioObjectSystemObject,
-                                 &addr,
+                                 &deviceAddr,
                                  vlimit_system_device_changed,
-                                 &helper);
-  return helper;
+                                 *helper);
+
+  AudioObjectPropertyAddress volumeAddr;
+  volumeAddr.mSelector = kAudioHardwareServiceDeviceProperty_VirtualMasterVolume;
+  volumeAddr.mScope = kAudioObjectPropertyScopeOutput;
+  volumeAddr.mElement = kAudioObjectPropertyElementMaster;
+
+  AudioObjectAddPropertyListener((*helper)->audioID,
+                                 &volumeAddr,
+                                 vlimit_system_volume_changed,
+                                 *helper);
+
+  return noErr;
 }
