@@ -88,10 +88,14 @@ static OSStatus vlimit_set_max_volume(struct vlimit_helper *self, Float32 maxVol
     return 1;
   }
 
-  return AudioObjectAddPropertyListener(self->audioID,
-                                        &addr,
-                                        vlimit_system_volume_changed,
-                                        self);
+  if (prevAudioId != self->audioID) {
+    return AudioObjectAddPropertyListener(self->audioID,
+                                          &addr,
+                                          vlimit_system_volume_changed,
+                                          self);
+  }
+
+  return noErr;
 }
 
 struct vlimit_helper get_vlimit_helper()

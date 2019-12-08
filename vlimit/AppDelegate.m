@@ -10,7 +10,10 @@
 
 #import "vlimit_helpers.h"
 
+#import <ServiceManagement/ServiceManagement.h>
+
 #define MAX_VOLUME_KEY @"maxVolume"
+#define AUTO_LAUNCH_KEY @"autoLaunch"
 
 @interface AppDelegate ()
 @property (nonatomic, strong) NSStatusItem *statusItem;
@@ -36,7 +39,7 @@
   [_maxVolumeSlider sendActionOn:NSEventMaskLeftMouseUp];
   [_maxVolumeSlider setAction:@selector(maxVolumeSliderDidChange:)];
 
-  NSMenuItem *title = [[NSMenuItem alloc] initWithTitle:@"Maximum Volume:"
+  NSMenuItem *title = [[NSMenuItem alloc] initWithTitle:@"Volume Limit:"
                                                  action:nil
                                           keyEquivalent:@""];
 
@@ -45,6 +48,9 @@
                                          keyEquivalent:@""];
   [quit setTarget:[NSApplication sharedApplication]];
 
+  NSMenuItem *launchLogin = [[NSMenuItem alloc] initWithTitle:@"Enable on Launch" action:@selector(toggleEnableOnLaunch:) keyEquivalent:@""];
+  [launchLogin setTarget:self];
+  [launchLogin setState:[[NSUserDefaults standardUserDefaults] integerForKey:AUTO_LAUNCH_KEY]];
 
   NSMenuItem *sliderItem = [NSMenuItem new];
   NSStackView *stackView = [NSStackView stackViewWithViews:@[_maxVolumeSlider]];
@@ -55,6 +61,8 @@
   [menu addItem:[[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""]];
   [menu addItem:sliderItem];
   [menu addItem:[[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""]];
+  [menu addItem:launchLogin];
+  [menu addItem:[NSMenuItem separatorItem]];
   [menu addItem:quit];
 
   _statusItem.button.image = [NSImage imageNamed:@"hearing"];
@@ -74,6 +82,28 @@
 
   _helper.vlimit_set_max_volume(&_helper, value);
   [[NSUserDefaults standardUserDefaults] setFloat:value forKey:MAX_VOLUME_KEY];
+}
+
+- (void)toggleEnableOnLaunch:(NSMenuItem *)menuItem
+{
+  BOOL state = NO;
+
+  switch (menuItem.state) {
+    case NSControlStateValueOn:
+      state = YES;
+      break;
+    case NSControlStateValueOff:
+      state = NO;
+      break;
+    default:
+      return;
+  }
+
+  if (SMLoginItemSetEnabled((__bridge CFStringRef)[[NSBundle mainBundle] bundleIdentifier], state)) {
+    NSControlStateValue controlState = state ? NSControlStateValueOn : NSControlStateValueOff;
+    [[NSUserDefaults standardUserDefaults] setInteger:controlState forKey:AUTO_LAUNCH_KEY];
+    [menuItem setState:controlState];
+  }
 }
 
 @end
