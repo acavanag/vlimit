@@ -10,14 +10,10 @@
 
 #import "vlimit_helpers.h"
 
-#import <ServiceManagement/ServiceManagement.h>
-
 #define MAX_VOLUME_KEY @"maxVolume"
-#define AUTO_LAUNCH_KEY @"autoLaunch"
 
 @interface AppDelegate ()
 @property (nonatomic, strong) NSStatusItem *statusItem;
-@property (nonatomic, strong) NSSlider *maxVolumeSlider;
 @end
 
 @implementation AppDelegate
@@ -32,12 +28,12 @@
 
   NSMenu *menu = [NSMenu new];
 
-  _maxVolumeSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(0, 0, 160, 16)];
-  [_maxVolumeSlider setMinValue:0];
-  [_maxVolumeSlider setMaxValue:1];
-  [_maxVolumeSlider setTarget:self];
-  [_maxVolumeSlider sendActionOn:NSEventMaskLeftMouseUp];
-  [_maxVolumeSlider setAction:@selector(maxVolumeSliderDidChange:)];
+  NSSlider *volumeSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(0, 0, 160, 16)];
+  [volumeSlider setMinValue:0];
+  [volumeSlider setMaxValue:1];
+  [volumeSlider setTarget:self];
+  [volumeSlider sendActionOn:NSEventMaskLeftMouseUp];
+  [volumeSlider setAction:@selector(maxVolumeSliderDidChange:)];
 
   NSMenuItem *title = [[NSMenuItem alloc] initWithTitle:@"Volume Limit:"
                                                  action:nil
@@ -48,12 +44,8 @@
                                          keyEquivalent:@""];
   [quit setTarget:[NSApplication sharedApplication]];
 
-  NSMenuItem *launchLogin = [[NSMenuItem alloc] initWithTitle:@"Enable on Launch" action:@selector(toggleEnableOnLaunch:) keyEquivalent:@""];
-  [launchLogin setTarget:self];
-  [launchLogin setState:[[NSUserDefaults standardUserDefaults] integerForKey:AUTO_LAUNCH_KEY]];
-
   NSMenuItem *sliderItem = [NSMenuItem new];
-  NSStackView *stackView = [NSStackView stackViewWithViews:@[_maxVolumeSlider]];
+  NSStackView *stackView = [NSStackView stackViewWithViews:@[volumeSlider]];
   [stackView setEdgeInsets:NSEdgeInsetsMake(0, 16, 0, 16)];
   sliderItem.view = stackView;
 
@@ -61,8 +53,6 @@
   [menu addItem:[[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""]];
   [menu addItem:sliderItem];
   [menu addItem:[[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""]];
-  [menu addItem:launchLogin];
-  [menu addItem:[NSMenuItem separatorItem]];
   [menu addItem:quit];
 
   _statusItem.button.image = [NSImage imageNamed:@"hearing"];
@@ -70,9 +60,9 @@
 
   NSNumber *maxVolumeObj = [[NSUserDefaults standardUserDefaults] objectForKey:MAX_VOLUME_KEY];
   Float32 maxVolume = maxVolumeObj ? [maxVolumeObj floatValue] : 100;
-  [_maxVolumeSlider setFloatValue:maxVolume];
+  [volumeSlider setFloatValue:maxVolume];
 
-  _helper = get_vlimit_helper();
+  _helper = vlimit_start_service();
   _helper.vlimit_set_max_volume(&_helper, maxVolume);
 }
 
@@ -82,28 +72,6 @@
 
   _helper.vlimit_set_max_volume(&_helper, value);
   [[NSUserDefaults standardUserDefaults] setFloat:value forKey:MAX_VOLUME_KEY];
-}
-
-- (void)toggleEnableOnLaunch:(NSMenuItem *)menuItem
-{
-  BOOL state = NO;
-
-  switch (menuItem.state) {
-    case NSControlStateValueOn:
-      state = YES;
-      break;
-    case NSControlStateValueOff:
-      state = NO;
-      break;
-    default:
-      return;
-  }
-
-  if (SMLoginItemSetEnabled((__bridge CFStringRef)[[NSBundle mainBundle] bundleIdentifier], state)) {
-    NSControlStateValue controlState = state ? NSControlStateValueOn : NSControlStateValueOff;
-    [[NSUserDefaults standardUserDefaults] setInteger:controlState forKey:AUTO_LAUNCH_KEY];
-    [menuItem setState:controlState];
-  }
 }
 
 @end

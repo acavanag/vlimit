@@ -21,6 +21,6 @@ struct vlimit_helper {
   OSStatus (*vlimit_set_max_volume)(struct vlimit_helper *self, Float32 max_volume);
 };
 
-extern struct vlimit_helper get_vlimit_helper(void);
+extern struct vlimit_helper vlimit_start_service(void);
 
 #endif /* vlimit_helpers_h */
