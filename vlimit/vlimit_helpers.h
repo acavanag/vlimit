@@ -15,12 +15,20 @@
 #include <AudioToolbox/AudioToolbox.h>
 
 struct vlimit_helper {
+// Private API
   AudioObjectID audioID;
   Float32 max_volume;
+  void *ctx;
+  void (*volume_did_update)(void *ctx);
 
+// Public API
   OSStatus (*vlimit_set_max_volume)(struct vlimit_helper *self, Float32 max_volume);
+  Float32 (*vlimit_get_volume)(struct vlimit_helper *self);
 };
 
-extern OSStatus vlimit_start_service(struct vlimit_helper **helper);
+// Constructor
+extern OSStatus vlimit_start_service(struct vlimit_helper **helper,
+                                     void *ctx,
+                                     void (*volume_did_update)(void *ctx));
 
 #endif /* vlimit_helpers_h */

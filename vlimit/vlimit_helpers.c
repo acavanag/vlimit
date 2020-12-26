@@ -57,6 +57,12 @@ vlimit_get_system_volume(AudioObjectID inObjectID, Float32 *volumeOut)
   return noErr;
 }
 
+Float32 vlimit_get_volume(struct vlimit_helper *self) {
+  Float32 vol = -1;
+  vlimit_get_system_volume(self->audioID, &vol);
+  return vol;
+}
+
 static inline OSStatus
 vlimit_set_system_volume(AudioObjectID inObjectID, Float32 volume)
 {
@@ -78,14 +84,24 @@ vlimit_system_volume_changed(AudioObjectID inObjectID,
                              const AudioObjectPropertyAddress *inAddresses,
                              void *inClientData)
 {
-  Float32 volume;
-  CR(vlimit_get_system_volume(inObjectID, &volume));
- 
+  OSStatus result = noErr;
   struct vlimit_helper *self = inClientData;
-  if (volume > self->max_volume) {
-    CR(vlimit_set_system_volume(inObjectID, self->max_volume))
+
+  Float32 volume;
+  result = vlimit_get_system_volume(inObjectID, &volume);
+
+  if (result != noErr) {
+    self->volume_did_update(self->ctx);
+    return result;
   }
-  return noErr;
+
+  if (volume > self->max_volume) {
+    result = vlimit_set_system_volume(inObjectID, self->max_volume);
+  }
+
+  self->volume_did_update(self->ctx);
+
+  return result;
 }
 
 static OSStatus
@@ -126,6 +142,8 @@ vlimit_system_device_changed(AudioObjectID inObjectID,
                                     vlimit_system_volume_changed,
                                     self))
 
+  self->volume_did_update(self->ctx);
+
   return noErr;
 }
 
@@ -142,7 +160,9 @@ static OSStatus vlimit_set_max_volume(struct vlimit_helper *self, Float32 max_vo
   return noErr;
 }
 
-OSStatus vlimit_start_service(struct vlimit_helper **helper)
+OSStatus vlimit_start_service(struct vlimit_helper **helper,
+                              void *ctx,
+                              void (*volume_did_update)(void *ctx))
 {
   if (*helper == NULL) {
     *helper = malloc(sizeof(struct vlimit_helper));
@@ -150,6 +170,9 @@ OSStatus vlimit_start_service(struct vlimit_helper **helper)
 
   (*helper)->audioID = vlimit_get_audio_device();
   (*helper)->vlimit_set_max_volume = vlimit_set_max_volume;
+  (*helper)->vlimit_get_volume = vlimit_get_volume;
+  (*helper)->volume_did_update = volume_did_update;
+  (*helper)->ctx = ctx;
   (*helper)->max_volume = 100;
 
   AudioObjectPropertyAddress deviceAddr;
